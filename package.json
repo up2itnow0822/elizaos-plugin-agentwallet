@@ -1,7 +1,7 @@
 {
   "name": "elizaos-plugin-agentwallet",
-  "version": "1.0.0",
-  "description": "Non-custodial wallet plugin for ElizaOS agents — EVM + Solana, x402, CCTP bridge, spend limits",
+  "version": "1.0.1",
+  "description": "Non-custodial wallet plugin for ElizaOS agents \u2014 EVM + Solana, x402, CCTP bridge, spend limits",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -10,16 +10,24 @@
     "lint": "eslint src --ext .ts"
   },
   "keywords": [
-    "elizaos",
-    "eliza",
-    "plugin",
-    "wallet",
-    "solana",
-    "evm",
-    "x402",
+    "a2a",
+    "agent",
+    "agent-payments",
+    "ap2",
     "cctp",
+    "cross-chain",
+    "eliza",
+    "elizaos",
+    "evm",
+    "mcp",
     "non-custodial",
-    "agent"
+    "plugin",
+    "polygon",
+    "solana",
+    "spend-limits",
+    "typescript",
+    "wallet",
+    "x402"
   ],
   "author": "Bill Wilson <bill@ai-agent-economy.com>",
   "license": "MIT",
