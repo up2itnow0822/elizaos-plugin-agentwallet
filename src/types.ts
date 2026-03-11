@@ -1,9 +1,9 @@
 /**
- * types.ts — Plugin-level types for elizaos-plugin-agentwallet.
+ * types.ts - Plugin-level types for elizaos-plugin-agentwallet.
  * Where possible, re-exports real SDK types.
  */
 
-export type EvmChain = 'base' | 'base-sepolia' | 'ethereum' | 'arbitrum' | 'optimism' | 'polygon';
+export type EvmChain = 'base' | 'base-sepolia' | 'ethereum' | 'arbitrum' | 'polygon';
 export type SolanaNetwork = 'mainnet-beta' | 'devnet';
 
 export interface TokenBalance {
