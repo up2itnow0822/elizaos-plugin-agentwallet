@@ -233,7 +233,7 @@ function buildSDKWrapper(
       const amountUsdc = parseUnits(params.amount, 6);
 
       const result = await bridge.bridge(amountUsdc, params.toChain as any, {
-        destinationAddress: params.toAddress ?? this.getAddress(),
+        destinationAddress: (params.toAddress ?? evmWallet.address) as `0x${string}`,
       });
 
       return {
