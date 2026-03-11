@@ -1,7 +1,7 @@
 {
   "name": "elizaos-plugin-agentwallet",
   "version": "1.0.1",
-  "description": "Non-custodial wallet plugin for ElizaOS agents \u2014 EVM + Solana, x402, CCTP bridge, spend limits",
+  "description": "Non-custodial wallet plugin for ElizaOS agents — EVM + Solana, x402, CCTP bridge, spend limits",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
