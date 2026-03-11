@@ -52,143 +52,103 @@ export const walletProvider: Provider = {
  * EVM settings:
  *   AGENTWALLET_PRIVATE_KEY      — 0x-prefixed hex private key
  *   AGENTWALLET_ACCOUNT_ADDRESS  — AgentAccountV2 contract address (0x...)
- *   AGENTWALLET_CHAIN            — 'base' | 'arbitrum' | 'optimism' | 'ethereum' | 'polygon'
+ *   AGENTWALLET_CHAIN            — 'base' | 'arbitrum' | 'ethereum' | 'polygon'
  *   AGENTWALLET_RPC_URL          — optional RPC override
  *
- * Solana settings:
- *   AGENTWALLET_SOLANA_PRIVATE_KEY — base58-encoded private key
- *   AGENTWALLET_SOLANA_NETWORK     — 'mainnet-beta' | 'devnet'
- *   AGENTWALLET_SOLANA_RPC_URL     — optional RPC override
+ * Note: Solana support requires SolanaWallet which is not available in the current
+ * agentwallet-sdk release. EVM chains only.
  */
 export async function getSDK(runtime: IAgentRuntime): Promise<AgentWalletSDK | null> {
   const evmPrivateKey = runtime.getSetting('AGENTWALLET_PRIVATE_KEY');
-  const solanaPrivateKey = runtime.getSetting('AGENTWALLET_SOLANA_PRIVATE_KEY');
 
-  if (!evmPrivateKey && !solanaPrivateKey) return null;
+  if (!evmPrivateKey) return null;
 
   // Dynamic import so the plugin won't crash when SDK is absent (mocked in tests)
   const sdkModule = await import('agentwallet-sdk');
 
   let evmWalletObj: ReturnType<typeof sdkModule.createWallet> | null = null;
   let evmWalletClient: import('viem').WalletClient | null = null;
-  let solanaWalletObj: InstanceType<typeof sdkModule.SolanaWallet> | null = null;
 
   // ── EVM wallet setup ──────────────────────────────────────────────────────
-  if (evmPrivateKey) {
-    const accountAddress = runtime.getSetting('AGENTWALLET_ACCOUNT_ADDRESS');
-    const chain = (runtime.getSetting('AGENTWALLET_CHAIN') ?? 'base') as
-      'base' | 'base-sepolia' | 'ethereum' | 'arbitrum' | 'optimism' | 'polygon';
-    const rpcUrl = runtime.getSetting('AGENTWALLET_RPC_URL') ?? undefined;
+  const accountAddress = runtime.getSetting('AGENTWALLET_ACCOUNT_ADDRESS');
+  const chain = (runtime.getSetting('AGENTWALLET_CHAIN') ?? 'base') as
+    'base' | 'base-sepolia' | 'ethereum' | 'arbitrum' | 'polygon';
+  const rpcUrl = runtime.getSetting('AGENTWALLET_RPC_URL') ?? undefined;
 
-    if (accountAddress) {
-      const { createWalletClient, http } = await import('viem');
-      const { privateKeyToAccount } = await import('viem/accounts');
-      const { base, baseSepolia, mainnet, arbitrum, optimism, polygon } = await import('viem/chains');
+  if (accountAddress) {
+    const { createWalletClient, http } = await import('viem');
+    const { privateKeyToAccount } = await import('viem/accounts');
+    const { base, baseSepolia, mainnet, arbitrum, polygon } = await import('viem/chains');
 
-      const CHAINS: Record<string, import('viem').Chain> = {
-        base,
-        'base-sepolia': baseSepolia,
-        ethereum: mainnet,
-        arbitrum,
-        optimism,
-        polygon,
-      };
-      const viemChain = CHAINS[chain] ?? base;
-      const account = privateKeyToAccount(evmPrivateKey as `0x${string}`);
+    const CHAINS: Record<string, import('viem').Chain> = {
+      base,
+      'base-sepolia': baseSepolia,
+      ethereum: mainnet,
+      arbitrum,
+      polygon,
+    };
+    const viemChain = CHAINS[chain] ?? base;
+    const account = privateKeyToAccount(evmPrivateKey as `0x${string}`);
 
-      evmWalletClient = createWalletClient({
-        account,
-        chain: viemChain,
-        transport: http(rpcUrl),
-      });
+    evmWalletClient = createWalletClient({
+      account,
+      chain: viemChain,
+      transport: http(rpcUrl),
+    });
 
-      evmWalletObj = sdkModule.createWallet({
-        accountAddress: accountAddress as `0x${string}`,
-        chain,
-        rpcUrl,
-        walletClient: evmWalletClient,
-      });
-    }
-  }
-
-  // ── Solana wallet setup ───────────────────────────────────────────────────
-  if (solanaPrivateKey) {
-    const network = runtime.getSetting('AGENTWALLET_SOLANA_NETWORK') ?? 'mainnet-beta';
-    const solanaRpc =
-      runtime.getSetting('AGENTWALLET_SOLANA_RPC_URL') ??
-      (network === 'devnet' ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com');
-
-    solanaWalletObj = new sdkModule.SolanaWallet({
-      rpcUrl: solanaRpc,
-      privateKeyBase58: solanaPrivateKey,
+    evmWalletObj = sdkModule.createWallet({
+      accountAddress: accountAddress as `0x${string}`,
+      chain,
+      rpcUrl,
+      walletClient: evmWalletClient,
     });
   }
 
-  if (!evmWalletObj && !solanaWalletObj) return null;
+  if (!evmWalletObj) return null;
 
-  return buildSDKWrapper(sdkModule, evmWalletObj, evmWalletClient, solanaWalletObj, runtime);
+  return buildSDKWrapper(sdkModule, evmWalletObj, evmWalletClient, runtime);
 }
 
 // ── SDK Wrapper Builder ───────────────────────────────────────────────────────
 
 function buildSDKWrapper(
   sdkModule: typeof import('agentwallet-sdk'),
-  evmWallet: ReturnType<typeof sdkModule.createWallet> | null,
+  evmWallet: ReturnType<typeof sdkModule.createWallet>,
   evmWalletClient: import('viem').WalletClient | null,
-  solanaWallet: InstanceType<typeof sdkModule.SolanaWallet> | null,
   runtime: IAgentRuntime
 ): AgentWalletSDK {
   return {
     evmWallet,
-    solanaWallet,
+    solanaWallet: null,
 
     getAddress(): string {
-      if (evmWallet) return evmWallet.address;
-      if (solanaWallet) return solanaWallet.getPublicKey().toBase58();
-      return 'unknown';
+      return evmWallet.address;
     },
 
     getNetwork(): string {
-      if (evmWallet) return runtime.getSetting('AGENTWALLET_CHAIN') ?? 'base';
-      return runtime.getSetting('AGENTWALLET_SOLANA_NETWORK') ?? 'mainnet-beta';
+      return runtime.getSetting('AGENTWALLET_CHAIN') ?? 'base';
     },
 
     // ── Balances ─────────────────────────────────────────────────────────────
     async getBalances(): Promise<TokenBalance[]> {
       const balances: TokenBalance[] = [];
 
-      if (evmWallet) {
-        try {
-          const budget = await sdkModule.checkBudget(evmWallet, sdkModule.NATIVE_TOKEN);
-          const ethBalance = Number(budget.remainingInPeriod) / 1e18;
-          balances.push({
-            symbol: 'ETH',
-            address: sdkModule.NATIVE_TOKEN,
-            balance: ethBalance.toFixed(6),
-            decimals: 18,
-          });
-        } catch {
-          balances.push({
-            symbol: 'ETH',
-            address: '0x0000000000000000000000000000000000000000',
-            balance: '0',
-            decimals: 18,
-          });
-        }
-      }
-
-      if (solanaWallet) {
-        try {
-          const lamports = await solanaWallet.getBalance(); // returns bigint lamports for SOL
-          balances.push({
-            symbol: 'SOL',
-            address: 'native',
-            balance: (Number(lamports) / 1e9).toFixed(6),
-            decimals: 9,
-          });
-        } catch {
-          balances.push({ symbol: 'SOL', address: 'native', balance: '0', decimals: 9 });
-        }
+      try {
+        const budget = await sdkModule.checkBudget(evmWallet, sdkModule.NATIVE_TOKEN);
+        const ethBalance = Number(budget.remainingInPeriod) / 1e18;
+        balances.push({
+          symbol: 'ETH',
+          address: sdkModule.NATIVE_TOKEN,
+          balance: ethBalance.toFixed(6),
+          decimals: 18,
+        });
+      } catch {
+        balances.push({
+          symbol: 'ETH',
+          address: '0x0000000000000000000000000000000000000000',
+          balance: '0',
+          decimals: 18,
+        });
       }
 
       return balances;
@@ -196,128 +156,83 @@ function buildSDKWrapper(
 
     // ── Transfer ────────────────────────────────────────────────────────────
     async transfer(params: TransferParams): Promise<TransferResult> {
-      const useChain = params.chain ?? (solanaWallet && !evmWallet ? 'solana' : 'evm');
+      const { encodeFunctionData, parseUnits, zeroAddress } = await import('viem');
+      const isNative =
+        params.token === 'ETH' ||
+        params.token === zeroAddress ||
+        params.token === '0x0000000000000000000000000000000000000000';
 
-      if (useChain === 'solana' && solanaWallet) {
-        const signature = await solanaWallet.transfer({
-          recipient: params.toAddress,
-          amount: BigInt(Math.round(parseFloat(params.amount) * 1e9)), // SOL → lamports
-          mint: params.token === 'SOL' ? undefined : params.token,
+      let txData: `0x${string}` = '0x';
+      let value = 0n;
+      const to = isNative
+        ? (params.toAddress as `0x${string}`)
+        : (params.token as `0x${string}`);
+
+      if (isNative) {
+        value = parseUnits(params.amount, 18);
+      } else {
+        const erc20TransferAbi = [
+          {
+            name: 'transfer',
+            type: 'function',
+            inputs: [
+              { name: 'to', type: 'address' },
+              { name: 'amount', type: 'uint256' },
+            ],
+            outputs: [{ name: '', type: 'bool' }],
+            stateMutability: 'nonpayable',
+          },
+        ] as const;
+        txData = encodeFunctionData({
+          abi: erc20TransferAbi,
+          functionName: 'transfer',
+          args: [params.toAddress as `0x${string}`, parseUnits(params.amount, 6)],
         });
-        // SolanaWallet.transfer() returns the signature string directly
-        return { txHash: signature as string, success: true };
       }
 
-      if (evmWallet) {
-        const { encodeFunctionData, parseUnits, zeroAddress } = await import('viem');
-        const isNative =
-          params.token === 'ETH' ||
-          params.token === zeroAddress ||
-          params.token === '0x0000000000000000000000000000000000000000';
-
-        let txData: `0x${string}` = '0x';
-        let value = 0n;
-        let to = params.toAddress as `0x${string}`;
-
-        if (isNative) {
-          value = parseUnits(params.amount, 18);
-        } else {
-          const erc20TransferAbi = [
-            {
-              name: 'transfer',
-              type: 'function',
-              inputs: [
-                { name: 'to', type: 'address' },
-                { name: 'amount', type: 'uint256' },
-              ],
-              outputs: [{ name: '', type: 'bool' }],
-              stateMutability: 'nonpayable',
-            },
-          ] as const;
-          txData = encodeFunctionData({
-            abi: erc20TransferAbi,
-            functionName: 'transfer',
-            args: [params.toAddress as `0x${string}`, parseUnits(params.amount, 6)],
-          });
-          to = params.token as `0x${string}`;
-        }
-
-        const result = await sdkModule.agentExecute(evmWallet, { to, value, data: txData });
-        return { txHash: result.txHash, success: true };
-      }
-
-      throw new Error('No wallet configured for the requested chain');
+      const result = await sdkModule.agentExecute(evmWallet, { to, value, data: txData });
+      return { txHash: result.txHash, success: true };
     },
 
     // ── Swap ─────────────────────────────────────────────────────────────────
     async swap(params: SwapParams): Promise<SwapResult> {
-      const useChain = params.chain ?? (solanaWallet && !evmWallet ? 'solana' : 'evm');
+      const { SwapModule } = sdkModule;
+      const { parseUnits } = await import('viem');
 
-      if (useChain === 'solana' && solanaWallet) {
-        const jupiterClient = new sdkModule.JupiterSwapClient({ wallet: solanaWallet });
-        const result = await jupiterClient.swap({
-          inputMint: params.fromToken,
-          outputMint: params.toToken,
-          amount: BigInt(Math.round(parseFloat(params.amount) * 1e9)),
-          slippageBps: params.slippageBps ?? 50,
-        });
-        return {
-          txHash: result.txSignature,
-          outputAmount: result.outputAmount.toString(),
-        };
-      }
+      const swapMod = new SwapModule(
+        evmWallet.publicClient as any,
+        evmWallet.walletClient as any,
+        evmWallet.address
+      );
 
-      if (evmWallet) {
-        const { SwapModule } = sdkModule;
-        // SwapModule only supports 'base' | 'arbitrum' | 'optimism'
-        const rawChain = runtime.getSetting('AGENTWALLET_CHAIN') ?? 'base';
-        const evmChain = (['base', 'arbitrum', 'optimism'].includes(rawChain) ? rawChain : 'base') as
-          'base' | 'arbitrum' | 'optimism';
-        const { parseUnits } = await import('viem');
+      const fromDecimals = params.fromToken.toUpperCase() === 'USDC' ? 6 : 18;
+      const amountIn = parseUnits(params.amount, fromDecimals);
 
-        const swapMod = new SwapModule(
-          evmWallet.publicClient as any,
-          evmWallet.walletClient as any,
-          evmWallet.address,
-          { chain: evmChain }
-        );
-
-        const fromDecimals = params.fromToken.toUpperCase() === 'USDC' ? 6 : 18;
-        const amountIn = parseUnits(params.amount, fromDecimals);
-
-        const result = await swapMod.swap(
-          params.fromToken as `0x${string}`,
-          params.toToken as `0x${string}`,
-          amountIn,
-          { slippageBps: params.slippageBps ?? 50 }
-        );
-        return {
-          txHash: result.txHash,
-          outputAmount: result.quote.amountOut.toString(),
-        };
-      }
-
-      throw new Error('No wallet configured for swap');
+      const result = await swapMod.swap(
+        params.fromToken as `0x${string}`,
+        params.toToken as `0x${string}`,
+        amountIn,
+        { slippageBps: params.slippageBps ?? 50 }
+      );
+      return {
+        txHash: result.txHash,
+        outputAmount: result.quote.amountOut.toString(),
+      };
     },
 
     // ── Bridge ───────────────────────────────────────────────────────────────
     async bridge(params: BridgeParams): Promise<BridgeResult> {
-      const { UnifiedBridge } = sdkModule;
+      const { BridgeModule } = sdkModule;
       const { parseUnits } = await import('viem');
 
-      // UnifiedBridge.evmSigner expects a viem WalletClient (not the contract wallet wrapper)
-      const bridge = new UnifiedBridge({
-        evmSigner: evmWalletClient ?? undefined,
-        // solanaWallet expects @solana/web3.js Keypair — not exposed from SolanaWallet class.
-        // Solana-sourced bridges require a Keypair; skip for now.
-      });
+      if (!evmWalletClient) {
+        throw new Error('EVM wallet client required for bridge operations');
+      }
 
+      const bridge = new BridgeModule(evmWalletClient, params.fromChain as any);
       const amountUsdc = parseUnits(params.amount, 6);
 
-      const result = await bridge.bridge({
-        sourceChain: params.fromChain as import('agentwallet-sdk').CCTPSupportedChain,
-        destinationChain: params.toChain as import('agentwallet-sdk').CCTPSupportedChain,
-        amount: amountUsdc,
+      const result = await bridge.bridge(amountUsdc, params.toChain as any, {
         destinationAddress: params.toAddress ?? this.getAddress(),
       });
 
@@ -330,7 +245,6 @@ function buildSDKWrapper(
     // ── x402 Pay ─────────────────────────────────────────────────────────────
     async x402Pay(params: X402PayParams): Promise<X402PayResult> {
       const { createX402Client } = sdkModule;
-      if (!evmWallet) throw new Error('EVM wallet required for x402 payments');
 
       const client = createX402Client(evmWallet);
       const response = await client.fetch(params.endpoint);
