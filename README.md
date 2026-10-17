@@ -1,3 +1,6 @@
+> [!WARNING]
+> **Paused for security maintenance. Do not use in production.**
+
 # elizaos-plugin-agentwallet
 
 Non-custodial wallet plugin for ElizaOS agents. EVM + Solana, x402 micropayments, CCTP cross-chain bridge, Jupiter and Uniswap swaps — and your agent holds its own private key the entire time.
